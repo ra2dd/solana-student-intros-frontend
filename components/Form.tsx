@@ -2,12 +2,17 @@ import { FC } from 'react'
 import { StudentIntro } from '../models/StudentIntro'
 import { useState } from 'react'
 import { Box, Button, FormControl, FormLabel, Input, Textarea } from '@chakra-ui/react'
+import * as web3 from '@solana/web3.js'
+import { useConnection, useWallet } from '@solana/wallet-adapter-react'
 
 const STUDENT_INTRO_PROGRAM_ID = 'HdE95RSVsdb315jfJtaykXhXY478h53X6okDupVfY9yf'
 
 export const Form: FC = () => {
     const [name, setName] = useState('')
     const [message, setMessage] = useState('')
+
+    const { connection } = useConnection()
+    const { publicKey, sendTransaction } = useWallet()
 
     const handleSubmit = (event: any) => {
         event.preventDefault()
@@ -16,7 +21,53 @@ export const Form: FC = () => {
     }
 
     const handleTransactionSubmit = async (studentIntro: StudentIntro) => {
-        console.log(JSON.stringify(studentIntro))
+        if (!connection || !publicKey) {
+            return alert('Please connect solana wallet.')
+        }
+
+        const buffer = studentIntro.serialize()
+
+        const transaction = new web3.Transaction()
+        const [pda] = await web3.PublicKey.findProgramAddress(
+            [publicKey.toBuffer()],
+            new web3.PublicKey(STUDENT_INTRO_PROGRAM_ID)
+        )
+
+        console.log(pda)
+        console.log('')
+        console.log(buffer)
+        
+        const instruction = new web3.TransactionInstruction({
+            keys : [
+                {
+                    pubkey: publicKey,
+                    isSigner: true,
+                    isWritable: false
+                },
+                {
+                    pubkey: pda,
+                    isSigner: false,
+                    isWritable: true
+                },
+                {
+                    pubkey: web3.SystemProgram.programId,
+                    isSigner: false,
+                    isWritable: false
+                }
+            ],
+            data: buffer,
+            programId: new web3.PublicKey(STUDENT_INTRO_PROGRAM_ID)
+        })
+
+        transaction.add(instruction)
+
+        try {
+            sendTransaction(transaction, connection).then((sig) => {
+                console.log(`https://explorer.solana.com/tx/${sig}?cluster=devnet`)
+            })
+        } catch (error) {
+            alert(JSON.stringify(error))
+        }
     }
 
     return (
